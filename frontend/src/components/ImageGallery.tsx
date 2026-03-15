@@ -1,11 +1,12 @@
 import { ImageCard } from './ImageCard';
 import { LoadingSkeleton } from './LoadingSkeleton';
+import { ImageIcon } from './Icons';
 import type { ProcessedImage, ToastType } from '../types';
 
 interface ImageGalleryProps {
   images: ProcessedImage[];
   isLoading: boolean;
-  onDelete: (imageId: string) => void;
+  onDelete: (imageId: string) => Promise<void>;
   addToast: (message: string, type: ToastType) => void;
 }
 
@@ -19,12 +20,9 @@ export function ImageGallery({
     return (
       <div className="gallery">
         <div className="gallery__empty">
-          <span className="gallery__empty-icon" aria-hidden="true">
-            🖼
-          </span>
-          <p className="gallery__empty-text">
-            No images yet. Upload one to get started!
-          </p>
+          <ImageIcon size={56} className="gallery__empty-icon" />
+          <p className="gallery__empty-text">No images yet</p>
+          <p className="gallery__empty-hint">Your processed images will appear here</p>
         </div>
       </div>
     );
@@ -32,16 +30,20 @@ export function ImageGallery({
 
   return (
     <div className="gallery">
-      <h2 className="gallery__title">Processed Images</h2>
+      <h2 className="gallery__title">
+        Processed Images
+        {images.length > 0 ? <span className="gallery__count">{images.length}</span> : null}
+      </h2>
       <div className="gallery__grid">
         {isLoading
           ? Array.from({ length: 3 }, (_, i) => <LoadingSkeleton key={`skeleton-${i}`} />)
-          : images.map((image) => (
+          : images.map((image, idx) => (
               <ImageCard
                 key={image.imageId}
                 image={image}
                 onDelete={onDelete}
                 addToast={addToast}
+                index={idx}
               />
             ))}
       </div>

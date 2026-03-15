@@ -2,14 +2,14 @@
 export interface ProcessedImage {
   imageId: string;
   url: string;
+  originalUrl: string;
   processingTimeMs?: number;
   fileSize?: number;
   createdAt?: string;
-  localOriginalUrl?: string;
 }
 
 // ── Upload State ───────────────────────────────────────────────────────
-export type UploadStep = 'idle' | 'uploading' | 'removing-bg' | 'flipping' | 'hosting' | 'done' | 'error';
+export type UploadStep = 'idle' | 'uploading' | 'processing' | 'done' | 'error';
 
 export interface UploadState {
   isUploading: boolean;
@@ -38,6 +38,7 @@ export interface ApiResponse<T = unknown> {
 export interface ApiProcessResult {
   imageId: string;
   url: string;
+  originalUrl: string;
   processingTimeMs: number;
   fileSize: number;
 }
@@ -45,6 +46,7 @@ export interface ApiProcessResult {
 export interface ApiImageInfo {
   imageId: string;
   url: string;
+  originalUrl: string;
   createdAt: string;
   bytes: number;
 }

@@ -1,5 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 
+import { XMarkIcon, DragHandleIcon } from './Icons';
+
 interface CompareSliderProps {
   originalUrl: string;
   processedUrl: string;
@@ -58,7 +60,7 @@ export function CompareSlider({
   return (
     <div className="compare-slider" onClick={onClose}>
       <button className="compare-slider__close" onClick={onClose} aria-label="Close comparison">
-        ✕
+        <XMarkIcon size={18} />
       </button>
 
       <div
@@ -79,7 +81,9 @@ export function CompareSlider({
 
         {/* Divider line + handle */}
         <div className="compare-slider__divider" style={{ left: `${position}%` }}>
-          <div className="compare-slider__handle">⟷</div>
+          <div className="compare-slider__handle">
+            <DragHandleIcon size={18} />
+          </div>
         </div>
 
         {/* Labels */}

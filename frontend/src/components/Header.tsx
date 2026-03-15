@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 
+import { SunIcon, MoonIcon } from './Icons';
+
 function getInitialTheme(): 'light' | 'dark' {
   const stored = localStorage.getItem('theme');
   if (stored === 'light' || stored === 'dark') return stored;
@@ -31,7 +33,7 @@ export function Header(): React.JSX.Element {
         aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
         title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
       >
-        {theme === 'light' ? '🌙' : '☀️'}
+        {theme === 'light' ? <MoonIcon size={18} /> : <SunIcon size={18} />}
       </button>
     </header>
   );

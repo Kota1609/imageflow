@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 import { uploadImage } from '../utils/api';
 import type { ProcessedImage, UploadStep } from '../types';
@@ -6,57 +6,42 @@ import type { ProcessedImage, UploadStep } from '../types';
 interface UseImageUploadReturn {
   isUploading: boolean;
   currentStep: UploadStep;
+  uploadProgress: number;
   previewUrl: string | null;
   error: string | null;
   startUpload: (file: File) => Promise<ProcessedImage | null>;
+  retry: () => Promise<ProcessedImage | null>;
   reset: () => void;
 }
-
-const STEP_SEQUENCE: UploadStep[] = ['removing-bg', 'flipping', 'hosting'];
-const STEP_INTERVAL_MS = 2500;
 
 export function useImageUpload(): UseImageUploadReturn {
   const [isUploading, setIsUploading] = useState(false);
   const [currentStep, setCurrentStep] = useState<UploadStep>('idle');
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const stepTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const stepIndexRef = useRef(0);
+  const lastFileRef = useRef<File | null>(null);
 
-  const clearStepTimer = useCallback(() => {
-    if (stepTimerRef.current) {
-      clearInterval(stepTimerRef.current);
-      stepTimerRef.current = null;
-    }
-  }, []);
-
-  const startStepSimulation = useCallback(() => {
-    stepIndexRef.current = 0;
-    setCurrentStep('removing-bg');
-
-    stepTimerRef.current = setInterval(() => {
-      stepIndexRef.current += 1;
-      const nextStep = STEP_SEQUENCE[stepIndexRef.current];
-      if (nextStep) {
-        setCurrentStep(nextStep);
-      } else {
-        clearInterval(stepTimerRef.current!);
-        stepTimerRef.current = null;
+  // Cleanup object URL on unmount
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
       }
-    }, STEP_INTERVAL_MS);
-  }, []);
+    };
+  }, [previewUrl]);
 
   const reset = useCallback(() => {
-    clearStepTimer();
     setIsUploading(false);
     setCurrentStep('idle');
+    setUploadProgress(0);
     setError(null);
 
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl);
       setPreviewUrl(null);
     }
-  }, [clearStepTimer, previewUrl]);
+  }, [previewUrl]);
 
   const startUpload = useCallback(
     async (file: File): Promise<ProcessedImage | null> => {
@@ -72,30 +57,28 @@ export function useImageUpload(): UseImageUploadReturn {
         return null;
       }
 
+      // Store for retry
+      lastFileRef.current = file;
+
       // Create local preview
       const objectUrl = URL.createObjectURL(file);
       setPreviewUrl(objectUrl);
       setError(null);
       setIsUploading(true);
       setCurrentStep('uploading');
+      setUploadProgress(0);
 
       try {
-        // Start step simulation once upload begins server-side processing
         const result = await uploadImage(file, (percent) => {
+          setUploadProgress(percent);
           if (percent >= 100) {
-            startStepSimulation();
+            setCurrentStep('processing');
           }
         });
 
-        clearStepTimer();
         setCurrentStep('done');
-
-        return {
-          ...result,
-          localOriginalUrl: objectUrl,
-        };
+        return result;
       } catch (err: unknown) {
-        clearStepTimer();
         setCurrentStep('error');
         const message = err instanceof Error ? err.message : 'Upload failed';
         setError(message);
@@ -104,8 +87,14 @@ export function useImageUpload(): UseImageUploadReturn {
         setIsUploading(false);
       }
     },
-    [clearStepTimer, startStepSimulation],
+    [],
   );
 
-  return { isUploading, currentStep, previewUrl, error, startUpload, reset };
+  const retry = useCallback(async (): Promise<ProcessedImage | null> => {
+    const file = lastFileRef.current;
+    if (!file) return null;
+    return startUpload(file);
+  }, [startUpload]);
+
+  return { isUploading, currentStep, uploadProgress, previewUrl, error, startUpload, retry, reset };
 }

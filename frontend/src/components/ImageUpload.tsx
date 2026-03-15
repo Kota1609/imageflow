@@ -1,40 +1,17 @@
 import { useRef, useState, useCallback } from 'react';
 
 import { useImageUpload } from '../hooks/useImageUpload';
-import type { ProcessedImage, ToastType, UploadStep } from '../types';
+import { CloudUploadIcon, SpinnerIcon } from './Icons';
+import type { ProcessedImage, ToastType } from '../types';
 
 interface ImageUploadProps {
   onUpload: (image: ProcessedImage) => void;
   addToast: (message: string, type: ToastType) => void;
 }
 
-const STEP_LABELS: Record<UploadStep, string> = {
-  idle: '',
-  uploading: 'Uploading',
-  'removing-bg': 'Removing Background',
-  flipping: 'Flipping',
-  hosting: 'Hosting',
-  done: 'Done',
-  error: 'Failed',
-};
-
-const STEPS: UploadStep[] = ['uploading', 'removing-bg', 'flipping', 'hosting'];
-
-function getStepState(
-  step: UploadStep,
-  currentStep: UploadStep,
-): 'pending' | 'active' | 'done' {
-  const currentIdx = STEPS.indexOf(currentStep);
-  const stepIdx = STEPS.indexOf(step);
-
-  if (currentStep === 'done') return 'done';
-  if (stepIdx < currentIdx) return 'done';
-  if (stepIdx === currentIdx) return 'active';
-  return 'pending';
-}
-
 export function ImageUpload({ onUpload, addToast }: ImageUploadProps): React.JSX.Element {
-  const { isUploading, currentStep, previewUrl, error, startUpload, reset } = useImageUpload();
+  const { isUploading, currentStep, uploadProgress, previewUrl, error, startUpload, retry, reset } =
+    useImageUpload();
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -45,12 +22,21 @@ export function ImageUpload({ onUpload, addToast }: ImageUploadProps): React.JSX
       if (result) {
         onUpload(result);
         addToast('Image processed successfully!', 'success');
-        // Reset after a short delay so user sees "done" state
         setTimeout(() => reset(), 1500);
       }
     },
     [startUpload, onUpload, addToast, reset],
   );
+
+  const handleRetry = useCallback(async () => {
+    const result = await retry();
+
+    if (result) {
+      onUpload(result);
+      addToast('Image processed successfully!', 'success');
+      setTimeout(() => reset(), 1500);
+    }
+  }, [retry, onUpload, addToast, reset]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -71,7 +57,6 @@ export function ImageUpload({ onUpload, addToast }: ImageUploadProps): React.JSX
       if (file) {
         handleFile(file);
       }
-      // Reset input so same file can be re-selected
       e.target.value = '';
     },
     [handleFile],
@@ -81,6 +66,8 @@ export function ImageUpload({ onUpload, addToast }: ImageUploadProps): React.JSX
     'upload-zone',
     isDragOver ? 'upload-zone--active' : '',
     isUploading ? 'upload-zone--disabled' : '',
+    currentStep === 'processing' ? 'upload-zone--processing' : '',
+    currentStep === 'done' ? 'upload-zone--done' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -114,47 +101,66 @@ export function ImageUpload({ onUpload, addToast }: ImageUploadProps): React.JSX
         disabled={isUploading}
       />
 
-      {isUploading ? (
+      {isUploading || currentStep === 'done' ? (
         <div className="upload-preview">
           {previewUrl ? (
-            <img src={previewUrl} alt="Preview" className="upload-preview__image" />
+            <img
+              src={previewUrl}
+              alt="Preview"
+              className={`upload-preview__image ${currentStep === 'done' ? 'upload-preview__image--done' : ''}`}
+            />
           ) : null}
 
-          <div className="steps">
-            {STEPS.map((step, idx) => {
-              const state = getStepState(step, currentStep);
-              return (
-                <div key={step}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {idx > 0 ? <span className="step__separator" /> : null}
-                    <span
-                      className={`step ${state === 'active' ? 'step--active' : ''} ${state === 'done' ? 'step--done' : ''}`}
-                    >
-                      <span className="step__dot" />
-                      {STEP_LABELS[step]}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          {currentStep === 'uploading' ? (
+            <div className="upload-zone__status">
+              <div className="upload-zone__progress">
+                <div
+                  className="upload-zone__progress-fill"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
+              <p className="upload-zone__status-text">Uploading... {Math.round(uploadProgress)}%</p>
+            </div>
+          ) : null}
+
+          {currentStep === 'processing' ? (
+            <div className="upload-zone__status">
+              <SpinnerIcon size={24} className="upload-zone__spinner" />
+              <p className="upload-zone__status-text">Processing your image...</p>
+            </div>
+          ) : null}
+
+          {currentStep === 'done' ? (
+            <p className="upload-zone__status-text upload-zone__status-text--success">Done!</p>
+          ) : null}
         </div>
       ) : (
         <>
-          <span className="upload-zone__icon" aria-hidden="true">
-            +
-          </span>
+          <div className="upload-zone__icon-wrapper">
+            <CloudUploadIcon size={32} />
+          </div>
           <p className="upload-zone__text">
-            Drag &amp; drop an image here, or click to browse
+            Drag & drop an image here, or{' '}
+            <span className="upload-zone__browse">browse files</span>
           </p>
           <p className="upload-zone__hint">Supports PNG, JPG, WebP — Max 10MB</p>
         </>
       )}
 
       {error ? (
-        <p style={{ color: 'var(--danger)', marginTop: 'var(--space-4)', fontSize: '14px' }}>
-          {error}
-        </p>
+        <div className="upload-zone__error">
+          <p>{error}</p>
+          <button
+            className="upload-zone__retry"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleRetry();
+            }}
+            type="button"
+          >
+            Try again
+          </button>
+        </div>
       ) : null}
     </div>
   );

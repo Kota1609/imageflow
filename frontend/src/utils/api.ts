@@ -32,8 +32,8 @@ export function uploadImage(
           return;
         }
 
-        const { imageId, url, processingTimeMs, fileSize } = response.data;
-        resolve({ imageId, url, processingTimeMs, fileSize });
+        const { imageId, url, originalUrl, processingTimeMs, fileSize } = response.data;
+        resolve({ imageId, url, originalUrl, processingTimeMs, fileSize });
       } catch {
         reject(new Error('Failed to parse server response'));
       }
@@ -65,6 +65,7 @@ export async function listImages(): Promise<ProcessedImage[]> {
   return data.data.map((img) => ({
     imageId: img.imageId,
     url: img.url,
+    originalUrl: img.originalUrl,
     fileSize: img.bytes,
     createdAt: img.createdAt,
   }));
