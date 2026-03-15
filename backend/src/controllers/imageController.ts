@@ -4,8 +4,7 @@ import * as imageService from '../services/imageService';
 import type { MulterRequest, ApiResponse, ProcessResult, ImageInfo } from '../types';
 
 // ── Async Handler Wrapper ──────────────────────────────────────────────
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function asyncHandler<P = any, ResBody = any, ReqBody = any>(
+function asyncHandler<P = unknown, ResBody = unknown, ReqBody = unknown>(
   fn: (req: Request<P, ResBody, ReqBody>, res: Response<ResBody>, next: NextFunction) => Promise<void>,
 ) {
   return (req: Request<P, ResBody, ReqBody>, res: Response<ResBody>, next: NextFunction) =>
