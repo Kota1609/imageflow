@@ -12,6 +12,7 @@ export interface ApiResponse<T = unknown> {
 export interface ProcessResult {
   imageId: string;
   url: string;
+  originalUrl: string;
   processingTimeMs: number;
   fileSize: number;
 }
@@ -19,6 +20,7 @@ export interface ProcessResult {
 export interface ImageInfo {
   imageId: string;
   url: string;
+  originalUrl: string;
   createdAt: string;
   bytes: number;
 }
@@ -46,3 +48,4 @@ export const ALLOWED_MIME_TYPES = [
 export type AllowedMimeType = (typeof ALLOWED_MIME_TYPES)[number];
 
 export const CLOUDINARY_FOLDER = 'processed-images';
+export const CLOUDINARY_ORIGINALS_FOLDER = 'original-images';

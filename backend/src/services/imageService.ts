@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { env } from '../config/env';
 import { AppError } from '../errors/AppError';
-import { CLOUDINARY_FOLDER } from '../types';
+import { CLOUDINARY_FOLDER, CLOUDINARY_ORIGINALS_FOLDER } from '../types';
 import type { ProcessResult, ImageInfo, PipelineStepResult } from '../types';
 
 // ── Cloudinary Configuration (once at import time — env is already validated) ──
@@ -129,6 +129,46 @@ async function uploadToCloudinary(
   });
 }
 
+// ── Step 0: Upload Original to Cloudinary (for before/after comparison) ─
+async function uploadOriginal(
+  imageBuffer: Buffer,
+  imageId: string,
+  requestId: string,
+): Promise<{ url: string }> {
+  const start = Date.now();
+  log('upload_original_start', requestId, { imageId });
+
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        public_id: imageId,
+        folder: CLOUDINARY_ORIGINALS_FOLDER,
+        resource_type: 'image',
+      },
+      (error, result) => {
+        const durationMs = Date.now() - start;
+
+        if (error) {
+          log('upload_original_failed', requestId, { durationMs });
+          reject(new AppError(`Original upload failed: ${error.message}`, 502, 'UPLOAD_FAILED'));
+          return;
+        }
+
+        if (!result) {
+          log('upload_original_failed', requestId, { durationMs });
+          reject(new AppError('Original upload returned no result', 502, 'UPLOAD_FAILED'));
+          return;
+        }
+
+        log('upload_original_done', requestId, { durationMs, url: result.secure_url });
+        resolve({ url: result.secure_url });
+      },
+    );
+
+    uploadStream.end(imageBuffer);
+  });
+}
+
 // ── Main Pipeline: Remove BG → Flip → Upload ──────────────────────────
 export async function processImage(
   imageBuffer: Buffer,
@@ -139,13 +179,16 @@ export async function processImage(
 
   log('pipeline_start', requestId, { imageId, inputSize: imageBuffer.length });
 
+  // Step 0: Upload original to Cloudinary (for before/after comparison)
+  const originalUploaded = await uploadOriginal(imageBuffer, imageId, requestId);
+
   // Step 1: Remove background
   const bgRemoved = await removeBackground(imageBuffer, requestId);
 
   // Step 2: Flip horizontally
   const flipped = await flipHorizontally(bgRemoved.buffer, requestId);
 
-  // Step 3: Upload to Cloudinary
+  // Step 3: Upload processed to Cloudinary
   const uploaded = await uploadToCloudinary(flipped.buffer, imageId, requestId);
 
   const processingTimeMs = Date.now() - pipelineStart;
@@ -154,18 +197,30 @@ export async function processImage(
   return {
     imageId,
     url: uploaded.url,
+    originalUrl: originalUploaded.url,
     processingTimeMs,
     fileSize: uploaded.bytes,
   };
+}
+
+// ── Build Original URL from Processed URL ─────────────────────────────
+function getOriginalUrl(processedUrl: string, imageId: string): string {
+  // Replace the processed folder with originals folder, and strip the version
+  // number (v123456) since the original was uploaded separately with a different version
+  return processedUrl
+    .replace(`${CLOUDINARY_FOLDER}/${imageId}`, `${CLOUDINARY_ORIGINALS_FOLDER}/${imageId}`)
+    .replace(/\/v\d+\//, '/');
 }
 
 // ── Get Single Image ───────────────────────────────────────────────────
 export async function getImage(imageId: string): Promise<ImageInfo | null> {
   try {
     const result = await cloudinary.api.resource(`${CLOUDINARY_FOLDER}/${imageId}`);
+    const url = result.secure_url as string;
     return {
       imageId,
-      url: result.secure_url as string,
+      url,
+      originalUrl: getOriginalUrl(url, imageId),
       createdAt: result.created_at as string,
       bytes: result.bytes as number,
     };
@@ -183,12 +238,17 @@ export async function listImages(): Promise<ImageInfo[]> {
     resource_type: 'image',
   });
 
-  return (result.resources as Array<Record<string, unknown>>).map((r) => ({
-    imageId: (r.public_id as string).replace(`${CLOUDINARY_FOLDER}/`, ''),
-    url: r.secure_url as string,
-    createdAt: r.created_at as string,
-    bytes: r.bytes as number,
-  }));
+  return (result.resources as Array<Record<string, unknown>>).map((r) => {
+    const imageId = (r.public_id as string).replace(`${CLOUDINARY_FOLDER}/`, '');
+    const url = r.secure_url as string;
+    return {
+      imageId,
+      url,
+      originalUrl: getOriginalUrl(url, imageId),
+      createdAt: r.created_at as string,
+      bytes: r.bytes as number,
+    };
+  });
 }
 
 // ── Delete Image ───────────────────────────────────────────────────────
@@ -196,7 +256,11 @@ export async function deleteImage(imageId: string, requestId: string): Promise<v
   log('delete_start', requestId, { imageId });
 
   try {
-    await cloudinary.uploader.destroy(`${CLOUDINARY_FOLDER}/${imageId}`);
+    // Delete both processed and original images
+    await Promise.all([
+      cloudinary.uploader.destroy(`${CLOUDINARY_FOLDER}/${imageId}`),
+      cloudinary.uploader.destroy(`${CLOUDINARY_ORIGINALS_FOLDER}/${imageId}`),
+    ]);
     log('delete_done', requestId, { imageId });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
