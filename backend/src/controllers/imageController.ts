@@ -4,10 +4,12 @@ import * as imageService from '../services/imageService';
 import type { MulterRequest, ApiResponse, ProcessResult, ImageInfo } from '../types';
 
 // ── Async Handler Wrapper ──────────────────────────────────────────────
-type AsyncRequestHandler = (req: Request, res: Response, next: NextFunction) => Promise<void>;
-
-function asyncHandler(fn: AsyncRequestHandler): AsyncRequestHandler {
-  return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function asyncHandler<P = any, ResBody = any, ReqBody = any>(
+  fn: (req: Request<P, ResBody, ReqBody>, res: Response<ResBody>, next: NextFunction) => Promise<void>,
+) {
+  return (req: Request<P, ResBody, ReqBody>, res: Response<ResBody>, next: NextFunction) =>
+    Promise.resolve(fn(req, res, next)).catch(next);
 }
 
 // ── Upload & Process Image ─────────────────────────────────────────────
