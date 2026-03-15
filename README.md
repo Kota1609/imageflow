@@ -4,8 +4,8 @@ Upload an image, remove its background, flip it horizontally, and get a hosted U
 
 ## Live Demo
 
-- **Frontend:** [Coming soon — Vercel]
-- **Backend API:** [Coming soon — Render]
+- **Frontend:** [https://imageflow-theta.vercel.app](https://imageflow-theta.vercel.app)
+- **Backend API:** [https://imageflow-api-3ch0.onrender.com](https://imageflow-api-3ch0.onrender.com)
 
 ## Architecture
 
@@ -92,9 +92,9 @@ Visit `http://localhost:3000` — the frontend proxies API calls to the backend 
 | Method | Endpoint | Description | Response |
 |--------|----------|-------------|----------|
 | `GET` | `/health` | Health check | `{ status, timestamp, uptime }` |
-| `POST` | `/api/images/upload` | Upload & process image | `{ success, data: { imageId, url, processingTimeMs, fileSize } }` |
-| `GET` | `/api/images` | List all processed images | `{ success, data: [{ imageId, url, createdAt, bytes }] }` |
-| `GET` | `/api/images/:imageId` | Get single image | `{ success, data: { imageId, url, createdAt, bytes } }` |
+| `POST` | `/api/images/upload` | Upload & process image | `{ success, data: { imageId, url, originalUrl, processingTimeMs, fileSize } }` |
+| `GET` | `/api/images` | List all processed images | `{ success, data: [{ imageId, url, originalUrl, createdAt, bytes }] }` |
+| `GET` | `/api/images/:imageId` | Get single image | `{ success, data: { imageId, url, originalUrl, createdAt, bytes } }` |
 | `DELETE` | `/api/images/:imageId` | Delete image | `{ success }` |
 
 All responses include a `requestId` for tracing.
